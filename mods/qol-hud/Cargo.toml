@@ -1,0 +1,13 @@
+[package]
+name = "qol-hud"
+version = "1.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "A HUD panel the player places and sizes: coordinates, time, FPS"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+horizon-mod-sdk = { path = "../../crates/horizon-mod-sdk" }

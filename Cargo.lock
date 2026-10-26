@@ -2907,6 +2907,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "qol-hud"
+version = "1.0.0"
+dependencies = [
+ "horizon-mod-sdk",
+]
+
+[[package]]
 name = "quick-xml"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

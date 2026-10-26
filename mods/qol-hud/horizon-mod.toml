@@ -1,0 +1,9 @@
+id = "qol_hud"
+name = "QoL: HUD"
+version = "1.0.0"
+description = "One panel with coordinates, facing, the time of day and your FPS. Move it to any of the four corners, nudge it, and pick its size and spacing from Options > Mods."
+authors = ["Horizon"]
+api = "0.1"
+side = "client"
+capabilities = ["game-read", "render", "storage", "ui"]
+experimental = ["render", "ui"]

@@ -1611,7 +1611,9 @@ impl Game<'_> {
                     return ok(json!({ "ok": true, "chat": chat }));
                 }
                 if self.remote.is_some() {
-                    self.send_chat(&command);
+                    // Through the chat, so a client mod that owns the command
+                    // still gets it before the server does.
+                    self.handle_chat_input(&command);
                     return ok(json!({ "ok": true }));
                 }
                 self.as_console(|g| g.handle_chat_input(&command));
