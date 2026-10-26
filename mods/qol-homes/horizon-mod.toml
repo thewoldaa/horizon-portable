@@ -1,0 +1,8 @@
+id = "qol_homes"
+name = "QoL: Homes"
+version = "1.0.0"
+description = "Set a home and teleport back to it, then return to where you were. Commands: /sethome, /home, /back. Needs cheats, because it teleports you."
+authors = ["Horizon"]
+api = "0.1"
+side = "client"
+capabilities = ["game-read", "chat", "storage", "command"]

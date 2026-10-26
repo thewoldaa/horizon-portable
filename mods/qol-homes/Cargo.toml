@@ -1,0 +1,13 @@
+[package]
+name = "qol-homes"
+version = "1.0.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Homes and teleport-back for Horizon: /sethome, /home, /back, /spawn"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+horizon-mod-sdk = { path = "../../crates/horizon-mod-sdk" }
