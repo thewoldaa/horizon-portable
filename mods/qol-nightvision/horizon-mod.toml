@@ -1,0 +1,9 @@
+id = "qol_nightvision"
+name = "QoL: Night Vision"
+version = "1.0.0"
+description = "Brightens your view on this client alone, toggled with a key (N by default, rebindable in Options > Mods). Needs no cheats and no server: it works in hardcore worlds and on servers where you are not an operator."
+authors = ["Horizon"]
+api = "0.1"
+side = "client"
+capabilities = ["storage", "ui", "render", "input"]
+experimental = ["render", "ui", "input"]

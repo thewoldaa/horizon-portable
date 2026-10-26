@@ -10511,6 +10511,7 @@ impl Game<'_> {
             ticks: self.ticks,
             darkness: self.darkness_lighting(alpha as f32),
             night_vision: self.night_vision_intensity(),
+            mod_brightness: self.mod_brightness(),
             block_flicker: self.fog.block_light_flicker,
             boss_darken: self
                 .boss_overlay
@@ -13115,6 +13116,7 @@ fn loading_frame(hud: &HudBatch) -> Frame<'_> {
         ticks: 0,
         darkness: (0.0, 0.0),
         night_vision: 0.0,
+        mod_brightness: 0.0,
         block_flicker: 0.0,
         boss_darken: 0.0,
         menu_blur: None,

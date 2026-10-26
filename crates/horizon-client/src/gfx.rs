@@ -303,6 +303,9 @@ pub struct Frame<'a> {
     pub darkness: (f32, f32),
     /// Night vision (or conduit water vision) intensity on the lightmap.
     pub night_vision: f32,
+    /// A mod's own brightness (capability `render`, `set-brightness`): 0
+    /// leaves the lightmap alone, 1 lights every block as if at noon.
+    pub mod_brightness: f32,
     /// Torch flicker added to the block light factor of 1.4.
     pub block_flicker: f32,
     /// `lightmap.fsh` BossOverlayWorldDarkeningFactor (a wither's bar).
@@ -3123,6 +3126,7 @@ impl Renderer {
         darkness: f32,
         gamma: f32,
         night_vision: f32,
+        mod_brightness: f32,
         flicker: f32,
         boss_darken: f32,
     ) {
@@ -3160,6 +3164,18 @@ impl Renderer {
         }
         if self.fullbright {
             pixels.fill(255);
+        }
+        // A mod's brightness (`set-brightness`): the same lightmap, mixed
+        // towards full light by the level asked for, so it composes with
+        // night vision and the time of day instead of replacing them.
+        // Fullbright, the player's own option, still wins outright.
+        if mod_brightness > 0.0 && !self.fullbright {
+            let t = mod_brightness.min(1.0);
+            for pixel in pixels.chunks_mut(4) {
+                for channel in &mut pixel[..3] {
+                    *channel = (*channel as f32 + (255.0 - *channel as f32) * t) as u8;
+                }
+            }
         }
         // The lightmap changes with the time of day, flicker and effects,
         // not every frame: upload only what differs from the texture.
@@ -3264,6 +3280,7 @@ impl Renderer {
             frame.darkness.1,
             (self.gamma - frame.darkness.0).max(0.0),
             frame.night_vision,
+            frame.mod_brightness,
             frame.block_flicker,
             frame.boss_darken,
         );

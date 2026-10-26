@@ -28,6 +28,9 @@ impl Game<'_> {
     pub(super) fn mod_zoom(&self) -> Option<ModZoom> {
         None
     }
+    pub(super) fn mod_brightness(&self) -> f32 {
+        0.0
+    }
     pub(super) fn mod_minimap(&self) -> Option<ModMinimap> {
         None
     }
@@ -159,6 +162,19 @@ impl Game<'_> {
             smooth: z.smooth,
             turn: z.turn,
         })
+    }
+    /// The strongest brightness a mod asks for, while in a world: 0 when
+    /// none does. Unlike the zoom, the spyglass does not override it, and it
+    /// needs no cheats and no server: it is this client's lightmap.
+    ///
+    /// Gated on being in a world, not on `mod_playing`: opening the
+    /// inventory or the pause menu must not flash the world back to dark
+    /// behind the screen.
+    pub(super) fn mod_brightness(&self) -> f32 {
+        if self.player.is_none() {
+            return 0.0;
+        }
+        self.mods.mods.brightness()
     }
     /// The minimap the first mod showing one asks for.
     pub(super) fn mod_minimap(&self) -> Option<ModMinimap> {

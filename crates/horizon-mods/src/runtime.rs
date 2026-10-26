@@ -281,6 +281,9 @@ struct State {
     corner: Option<CornerPanel>,
     /// Capability `render`'s zoom, when the mod zooms.
     zoom: Option<ModZoom>,
+    /// Capability `render`'s brightness, when the mod brightens the view:
+    /// 0 is the lightmap untouched.
+    brightness: f32,
     /// Capability `render`'s minimap, when the mod shows one.
     minimap: Option<ModMinimap>,
     input: InputState,
@@ -445,6 +448,7 @@ impl Mods {
             shapes: Vec::new(),
             corner: None,
             zoom: None,
+            brightness: 0.0,
             minimap: None,
             input: InputState::default(),
             data_dir,
@@ -891,6 +895,14 @@ impl Mods {
             .iter()
             .filter_map(|e| e.run.as_ref()?.store.data().zoom)
             .max_by(|a, b| a.factor.total_cmp(&b.factor))
+    }
+    /// The strongest brightness a running mod asks for (capability `render`):
+    /// 0 when none does.
+    pub fn brightness(&self) -> f32 {
+        self.entries
+            .iter()
+            .filter_map(|e| e.run.as_ref().map(|r| r.store.data().brightness))
+            .fold(0.0, f32::max)
     }
     /// The minimap the first running mod shows (capability `render`).
     pub fn minimap(&self) -> Option<ModMinimap> {
@@ -1341,6 +1353,15 @@ impl render::Host for State {
                 1.0
             },
         });
+    }
+    fn set_brightness(&mut self, level: f32) {
+        // Anything not a number counts as off, so a mod that computes NaN
+        // cannot leave the player's view brightened with no way to say so.
+        self.brightness = if level.is_finite() {
+            level.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
     }
     fn set_minimap(&mut self, minimap: Option<ModMinimap>) {
         let finite = |v: f32, lo: f32, hi: f32| if v.is_finite() { v.clamp(lo, hi) } else { lo };
