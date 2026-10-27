@@ -14,7 +14,8 @@
 //! spawn point, and this mod will not guess coordinates. Use `/sethome` at
 //! spawn if that is where you want to return.
 use horizon_mod_sdk::{
-    Mod, Registration, chat, command::run,
+    Mod, Registration, chat,
+    command::run,
     game::{self, Player},
     storage,
 };
@@ -68,12 +69,7 @@ impl Spot {
         if parts.next().is_some() {
             return None;
         }
-        Some(Spot {
-            x,
-            y,
-            z,
-            dimension,
-        })
+        Some(Spot { x, y, z, dimension })
     }
 
     /// `123, 64, -45 in overworld`
