@@ -6,7 +6,6 @@ cukup; ini catatan teknis dan hal-hal yang perlu Anda tahu.
 ## Struktur
 
 ```
-portable/
   Play.bat            mulai main
   Setup.bat           siapkan file game (sekali saja)
   Host-Server.bat     jalankan server
@@ -67,8 +66,8 @@ Delapan mod, semua aktif:
 | Zoom | tahan tombol untuk zoom |
 
 Lima di antaranya mod resmi Horizon. Tiga yang teratas ditulis khusus untuk
-paket ini, source di `horizon/mods/qol-hud/`, `horizon/mods/qol-homes/`, dan
-`horizon/mods/qol-nightvision/`.
+paket ini, source-nya di `mods/qol-hud/`, `mods/qol-homes/`, dan
+`mods/qol-nightvision/` di dalam repo.
 
 `QoL: HUD` dan `Coordinates HUD` sama-sama menampilkan koordinat. Kalau
 memakai keduanya, matikan `Coordinates HUD` di **Options > Mods** —
@@ -126,26 +125,32 @@ Pakai LAN atau tailnet (Tailscale/ZeroTier).
 
 ## Update dari dev
 
-Fork ada di `github.com/thewoldaa/horizon`, upstream
-`ludovic111/horizon` sudah terpasang sebagai remote:
+Repo ini bukan fork. Isinya source Horizon yang lengkap ditambah kemasan
+portable, dan upstream `ludovic111/horizon` sudah terpasang sebagai remote:
 
 ```
-cd horizon
 git fetch upstream
 git merge upstream/main
-cargo +1.95.0 build --release --locked --features horizon-client/mods \
+```
+
+Kalau ada konflik, biasanya di `Cargo.toml` dan
+`crates/horizon-mods/src/api_level.rs`: upstream menaikkan `LEVEL` dan
+menambah fungsi, sementara di sini ada `render.set-brightness` untuk mod
+night vision. Ambil daftar fungsi upstream, lalu tambahkan kembali baris
+itu dan naikkan `LEVEL` ke nomor sesudahnya.
+
+Lalu build ulang program dan modnya:
+
+```
+cargo build --release --locked --features horizon-client/mods \
   -p horizon-client --bin horizon-client --bin horizon-ctl \
   -p horizon-prepare --bin horizon-prepare -p horizon-server --bin horizon-server
+
+powershell -NoProfile -ExecutionPolicy Bypass -File packaging\build-mods.ps1
 ```
 
-Lalu salin `horizon-*.exe` baru ke `portable/game/`. Dunia, setelan dan mod
-tidak tersentuh — semuanya di `data/` dan `mods/`.
-
-Kalau API mod berubah, build ulang modnya supaya cocok dengan game baru:
-
-```
-powershell -NoProfile -ExecutionPolicy Bypass -File packaging\portable\build-mods.ps1
-```
+Salin `horizon-*.exe` baru ke `packaging/portable/game/`. Dunia, setelan dan
+mod tidak tersentuh — semuanya di `data/` dan `mods/`.
 
 Kalau ada mod yang tidak mau compile, berarti API-nya berubah di bawahnya —
 itu tandanya modnya yang perlu dibetulkan, bukan update-nya yang dihindari.
@@ -155,6 +160,10 @@ Butuh **Rust 1.95** (wasmtime 48 menolak versi lebih lama). Kalau belum:
 ```
 rustup toolchain install 1.95.0
 ```
+
+Repo ini juga punya `.github/workflows/portable-release.yml`: jalankan dari
+tab Actions (atau push tag `v*`) untuk membangun ulang semuanya dan
+menerbitkan zip-nya di Releases.
 
 ## Kalau ada masalah
 
