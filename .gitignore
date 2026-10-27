@@ -34,3 +34,22 @@
 
 # Release-only compiled original exporter bundle.
 /exporters/
+
+# The portable package (packaging/portable/) is a shipped product, not build
+# output: it carries the built .exe files, the .hmod mods and the exporters
+# bundle, and it is committed so a clone is ready to play. The rules above
+# are for the repository's own build tree, so undo them inside the package.
+!/packaging/portable/
+!/packaging/portable/game/
+!/packaging/portable/game/exporters/
+!/packaging/portable/game/exporters/**/*.class
+!/packaging/portable/game/exporters/manifest.json
+!/packaging/portable/mods/
+!/packaging/portable/mods/*.hmod
+!/packaging/portable/**/*.exe
+
+# What the game writes into the package when a player runs it.
+/packaging/portable/data/
+/packaging/portable/servers/
+/packaging/portable/game/.local/
+/packaging/portable/game/server-jars/

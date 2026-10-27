@@ -1,21 +1,25 @@
-# Builds the seven mods this pack ships, into ..\portable\mods.
+# Builds the eight mods the portable package ships, into packaging\portable\mods\.
 #
-# All seven are built from this repository: five of Horizon's official mods,
-# plus qol-hud and qol-homes. Nothing is downloaded, so the pack follows the
-# fork's source: pull, run this, and the .hmod files match the commit.
+# All eight are built from this repository: five of Horizon's official mods,
+# plus qol-hud, qol-homes and qol-nightvision. Nothing is downloaded, so the
+# pack follows this repo's source: pull, run this, and the .hmod files match
+# the commit.
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File build-mods.ps1
-#   powershell -NoProfile -ExecutionPolicy Bypass -File build-mods.ps1 -Out C:\somewhere
+# This is a build tool, not part of the package: packaging\portable\ is what a
+# player receives.
+#
+#   powershell -NoProfile -ExecutionPolicy Bypass -File packaging\build-mods.ps1
+#   powershell -NoProfile -ExecutionPolicy Bypass -File packaging\build-mods.ps1 -Out C:\somewhere
 
 param(
-    [string]$Out = (Join-Path (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))) 'portable\mods')
+    [string]$Out = (Join-Path $PSScriptRoot 'portable\mods')
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# The repository root: this file is in packaging\portable\.
-$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+# The repository root: this file is in packaging\.
+$repo = Split-Path -Parent $PSScriptRoot
 
 # id -> the folder that builds it. The id is what horizon-mods.txt names.
 $mods = [ordered]@{
@@ -33,6 +37,12 @@ $mods = [ordered]@{
 # toolchain. `cargo-horizon-mod`, the packer, is not: it links wasmtime, which
 # refuses anything below rustc 1.95.0.
 $toolchain = '+1.95.0'
+
+# The packer runs `cargo` from PATH, not the toolchain that built it, so the
+# mods would be compiled by whichever toolchain is default. Pin it to the one
+# below, so this script and CI compile the same .wasm; rustup reads this for
+# the target check too.
+$env:RUSTUP_TOOLCHAIN = '1.95.0'
 
 Write-Host ''
 Write-Host '==> building the mod packer' -ForegroundColor Cyan

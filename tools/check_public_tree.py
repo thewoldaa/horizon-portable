@@ -9,12 +9,31 @@ import sys
 PRIVATE_ROOTS = {".local", "decompiled", "minecraft", "assets", "run", "logs"}
 PRIVATE_EXTENSIONS = {".jar", ".class", ".jfr", ".hprof", ".java"}
 ORIGINAL_JDK_TOOLS = {"tools/JfrSummary.java", "tests/java/JfrFixture.java"}
+# The portable package ships the exporter bundle so a clone can prepare game
+# files without a build, and only Horizon's own classes are in it: the release
+# workflow compiles them and refuses anything outside dev/horizonlab/parity
+# (packaging/portable/README.md). Everything else stays private, Minecraft's
+# classes included.
+PORTABLE_EXPORTERS = "packaging/portable/game/exporters/"
+
+
+def portable_exporter(path):
+    if not path.startswith(PORTABLE_EXPORTERS):
+        return False
+    rest = PurePosixPath(path[len(PORTABLE_EXPORTERS):])
+    parts = rest.parts
+    # client|server / dev/horizonlab/parity / <class>.class
+    return (len(parts) == 5 and parts[0] in {"client", "server"}
+            and parts[1:4] == ("dev", "horizonlab", "parity")
+            and rest.suffix == ".class")
 
 
 def prohibited(path):
     parsed = PurePosixPath(path)
     # Original JDK-only tools are an exact allowlist; recovered game Java stays private.
     if path in ORIGINAL_JDK_TOOLS:
+        return False
+    if portable_exporter(path):
         return False
     # Original Horizon mod sources may also be tracked.
     if parsed.suffix == ".java" and path.startswith(("mods/horizon/src/", "mods/horizon-lab/src/")):

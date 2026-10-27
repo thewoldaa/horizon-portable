@@ -182,6 +182,19 @@ class PublicationTests(unittest.TestCase):
         for path in ["tools/Minecraft.java", "tests/java/Client.java", ".local/tools/JfrSummary.java"]:
             self.assertTrue(check_public_tree.prohibited(path), path)
 
+    def test_portable_exporter_bundle_is_public_but_minecraft_classes_are_not(self):
+        # The portable package carries the compiled exporter bundle, and only
+        # Horizon's own classes: packaging/portable/README.md.
+        for path in ["packaging/portable/game/exporters/client/dev/horizonlab/parity/PrepareWorker.class",
+                     "packaging/portable/game/exporters/server/dev/horizonlab/parity/ParityData.class",
+                     "packaging/portable/game/exporters/manifest.json"]:
+            self.assertFalse(check_public_tree.prohibited(path), path)
+        for path in ["packaging/portable/game/exporters/server/net/minecraft/server/MinecraftServer.class",
+                     "packaging/portable/game/exporters/server/dev/horizonlab/other/Thing.class",
+                     "packaging/portable/game/exporters/server/dev/horizonlab/parity/Thing.jar",
+                     "packaging/portable/game/exporters/bundle.jar"]:
+            self.assertTrue(check_public_tree.prohibited(path), path)
+
     def test_force_added_ignored_file_is_detected_in_index_and_history(self):
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)

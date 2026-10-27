@@ -4,3 +4,12 @@ docs/launcher-commands.md text eol=lf
 docs/horizon-ctl-commands.md text eol=lf
 website/src/tokens.css text eol=lf
 docs/api/*-reference.md text eol=lf
+
+# The portable package is shipped as it is checked out. cmd.exe needs CRLF in a
+# batch file: with LF alone, `goto :eof` and labels can misread the file. The
+# PowerShell scripts and the mod sources are fine either way; pinning them keeps
+# the zip identical whatever a runner's core.autocrlf is set to.
+packaging/portable/*.bat text eol=crlf
+packaging/portable/scripts/*.ps1 text eol=crlf
+packaging/build-mods.ps1 text eol=crlf
+packaging/portable/*.md text eol=lf

@@ -1,0 +1,286 @@
+name: portable release
+# Builds the portable package and publishes it as a GitHub Release.
+#
+# The package is packaging/portable/: the four programs, the eight .hmod mods,
+# the batch files, the scripts and the exporter bundle, laid out exactly as a
+# player receives it. This workflow rebuilds the programs and the mods from this
+# commit (so the release never ships a stale binary), refuses to publish if any
+# of them is missing or does not start, zips the folder, and attaches the zip.
+#
+# Windows only: the package is a set of .exe files and .bat launchers.
+#
+# What it never ships: game/.local/, the game files Setup.bat derives from the
+# player's own Minecraft. They are 3 GB, they are Minecraft's, and they must not
+# be redistributed. The zip is checked for them before it is published.
+#
+#   gh workflow run portable-release.yml -f version=v1.0.0
+#   git tag v1.0.0 && git push origin v1.0.0
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release tag, e.g. v1.0.0 (a tag push sets this itself)'
+        required: false
+        type: string
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: portable-release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  # The tag and the version the programs are built with, decided once so the
+  # build and the publish agree. HORIZON_VERSION carries no `v` (the tag does):
+  # horizon_core::release says `--version` prints `0.2.3`, and a test enforces it.
+  decide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+    steps:
+      - id: tag
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          # A tag push supplies its own; a hand-started run takes the input.
+          tag="${INPUT_VERSION:-${GITHUB_REF_NAME}}"
+          if [[ ! "$tag" =~ ^v[0-9] ]]; then
+            echo "::error::'$tag' is not a version tag (v1.0.0)"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: decide
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      # The version built into the programs (horizon_core::release): --version,
+      # user agents and crash reports say it.
+      HORIZON_VERSION: ${{ needs.decide.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The programs are built from a clean tree: nothing a previous step
+          # left may end up in a release.
+          clean: true
+      # One toolchain for everything, and the default one: `cargo-horizon-mod`
+      # runs bare `cargo` for each mod, so the mods must build on whatever is
+      # default. 1.95.0 because the packer links wasmtime, which refuses
+      # anything older; the workspace itself needs only 1.85.
+      - uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: portable-release
+
+      - name: Build the client, horizon-ctl, horizon-prepare and horizon-server
+        # `horizon-client/mods`: every released game runs code mods (the feature
+        # is off in dev builds). crt-static links the C runtime in, so the game
+        # runs without the Visual C++ redistributable.
+        env:
+          RUSTFLAGS: -C target-feature=+crt-static
+        run: cargo build --release --locked --features horizon-client/mods -p horizon-client --bin horizon-client --bin horizon-ctl -p horizon-prepare --bin horizon-prepare -p horizon-server --bin horizon-server
+
+      - name: Every program was built
+        shell: bash
+        run: |
+          for binary in horizon-client horizon-ctl horizon-prepare horizon-server; do
+            test -f "target/release/$binary.exe" || { echo "::error::target/release/$binary.exe is missing"; exit 1; }
+          done
+
+      - name: Every program starts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin=target/release
+          "$bin/horizon-client.exe" --help | grep -q -- '--resources'
+          "$bin/horizon-ctl.exe" --help > /dev/null
+          "$bin/horizon-prepare.exe" --help | grep -q -- '--minecraft-dir'
+          "$bin/horizon-server.exe" --help > /dev/null
+
+      - name: Only system DLLs
+        # A non-system DLL is a "DLL not found" dialog on some players' machines.
+        shell: bash
+        run: |
+          for binary in horizon-client horizon-ctl horizon-prepare horizon-server; do
+            python tools/check_imports.py "target/release/$binary.exe"
+          done
+
+      - name: Build the eight mods into the package
+        shell: pwsh
+        run: ./packaging/build-mods.ps1
+
+      - name: Assemble the package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $game = 'packaging/portable/game'
+          foreach ($exe in 'horizon-client', 'horizon-ctl', 'horizon-prepare', 'horizon-server') {
+            Copy-Item "target/release/$exe.exe" $game -Force
+          }
+
+      - name: The package is complete
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $fail = @()
+          $root = 'packaging/portable'
+          foreach ($file in 'Play.bat', 'Setup.bat', 'Host-Server.bat', 'README.md',
+                            'game/horizon-client.exe', 'game/horizon-ctl.exe',
+                            'game/horizon-prepare.exe', 'game/horizon-server.exe',
+                            'game/research-lock.json', 'game/LICENSE',
+                            'game/exporters/manifest.json',
+                            'scripts/common.ps1', 'scripts/play.ps1',
+                            'scripts/server.ps1', 'scripts/setup.ps1') {
+            if (-not (Test-Path (Join-Path $root $file))) { $fail += "missing $file" }
+          }
+          # Eight mods, one file per id: a second copy of an id would be refused
+          # by the game ("another running mod already uses id").
+          $mods = Get-ChildItem (Join-Path $root 'mods') -Filter '*.hmod' -File
+          $ids = $mods | ForEach-Object { $_.BaseName }
+          if ($mods.Count -ne 8) { $fail += "expected 8 .hmod files, found $($mods.Count)" }
+          foreach ($id in 'coords_hud', 'fps_overlay', 'keystrokes', 'minimap',
+                          'qol_homes', 'qol_hud', 'qol_nightvision', 'zoom') {
+            if ($ids -notcontains $id) { $fail += "missing mod $id" }
+          }
+          $dupes = $ids | Group-Object | Where-Object Count -gt 1
+          foreach ($dupe in $dupes) { $fail += "duplicate mod id $($dupe.Name)" }
+          if ($fail) { foreach ($line in $fail) { Write-Host "::error::$line" }; exit 1 }
+          Write-Host "the package is complete: $($mods.Count) mods"
+
+      - name: The exporter bundle matches its manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dir = 'packaging/portable/game/exporters'
+          $manifest = Get-Content (Join-Path $dir 'manifest.json') -Raw | ConvertFrom-Json
+          $fail = @()
+          foreach ($rel in $manifest.classes.PSObject.Properties.Name) {
+            $path = Join-Path $dir $rel
+            if (-not (Test-Path $path)) { $fail += "missing $rel"; continue }
+            $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
+            if ($hash -ne $manifest.classes.$rel) { $fail += "changed $rel" }
+          }
+          if ($fail) { foreach ($line in $fail) { Write-Host "::error::$line" }; exit 1 }
+          Write-Host "$($manifest.classes.PSObject.Properties.Count) exporter classes verified"
+
+      - name: Zip the package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The zip holds the folder's contents at its root, so unzipping gives
+          # the package straight away rather than a folder inside a folder.
+          $zip = 'horizon-portable-windows-x64.zip'
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path 'packaging/portable/*' -DestinationPath $zip -CompressionLevel Optimal
+          $size = [math]::Round((Get-Item $zip).Length / 1MB, 1)
+          Write-Host "$zip ($size MiB)"
+
+      - name: No game files, no worlds, no servers in the zip
+        # The check that matters most: these are Minecraft's, and the package
+        # must not carry them.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead((Resolve-Path 'horizon-portable-windows-x64.zip'))
+          try {
+            $names = $zip.Entries | ForEach-Object { $_.FullName -replace '\\', '/' }
+          } finally { $zip.Dispose() }
+          $bad = $names | Where-Object {
+            $_ -match '(^|/)\.local/' -or $_ -match '(^|/)data/' -or $_ -match '(^|/)servers/' -or
+            $_ -match '(^|/)server-jars/' -or $_ -match '\.(jar|jfr|hprof)$'
+          }
+          if ($bad) {
+            foreach ($line in $bad) { Write-Host "::error::the zip carries $line" }
+            exit 1
+          }
+          Write-Host "$($names.Count) entries, none of them game files"
+
+      - name: A player's first run works (unzip, Setup.bat's layout, Play.bat's launch)
+        # Without Minecraft on the runner there is nothing to prepare, so this
+        # checks what can be checked: the folder unzips to the package, the
+        # scripts find the programs beside them, and the client starts from it.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $home_ = Join-Path $env:RUNNER_TEMP 'portable-smoke'
+          Remove-Item $home_ -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory $home_ | Out-Null
+          Expand-Archive 'horizon-portable-windows-x64.zip' -DestinationPath $home_
+          foreach ($file in 'Play.bat', 'Setup.bat', 'Host-Server.bat',
+                            'game/horizon-client.exe', 'scripts/common.ps1') {
+            if (-not (Test-Path (Join-Path $home_ $file))) { Write-Host "::error::$file is not where a player expects it"; exit 1 }
+          }
+          # The version is the release's, without its `v`.
+          $version = & (Join-Path $home_ 'game/horizon-prepare.exe') --version
+          Write-Host $version
+          $want = "horizon-prepare $env:HORIZON_VERSION"
+          if ($version -ne $want) { Write-Host "::error::expected '$want', got '$version'"; exit 1 }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: horizon-portable-windows-x64.zip
+          path: horizon-portable-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [decide, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: horizon-portable-windows-x64.zip
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.decide.outputs.tag }}
+        run: |
+          set -euo pipefail
+          notes=$(cat <<'EOF'
+          Horizon Portable: Minecraft: Java Edition 26.3, rewritten in Rust, with a
+          small modpack, in one folder.
+
+          Unzip anywhere, then:
+
+            1. Setup.bat   prepares the game files from your own Minecraft 26.3
+                           (needs Minecraft 26.3 played once, and Java 25)
+            2. Play.bat    plays
+
+          Host-Server.bat hosts a world.
+
+          Your worlds, settings and servers stay in the folder: move it to another
+          computer or a USB drive and carry on where you left off.
+
+          The mods, all on by default: QoL: HUD, QoL: Homes, QoL: Night Vision,
+          Coordinates HUD, FPS Counter, Keystrokes, Minimap, Zoom.
+
+          This zip carries no Minecraft code, textures or sounds: Setup.bat derives
+          them from your own copy. Not an official Minecraft product. Not approved
+          by or associated with Mojang or Microsoft.
+
+          Horizon is by ludovic111 and its contributors, MIT licensed:
+          https://github.com/ludovic111/horizon
+          EOF
+          )
+          # --latest: this is the one build players are meant to take. A tag push
+          # whose release already exists (a re-run) updates it in place.
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" horizon-portable-windows-x64.zip --clobber
+            gh release edit "$TAG" --title "Horizon Portable $TAG" --notes "$notes" --latest
+          else
+            gh release create "$TAG" horizon-portable-windows-x64.zip \
+              --target "$GITHUB_SHA" --title "Horizon Portable $TAG" --notes "$notes" --latest
+          fi
