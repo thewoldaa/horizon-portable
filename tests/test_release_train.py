@@ -1,8 +1,15 @@
 import datetime as dt
+import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
+
+# The notes name the repository they are published in (release_train.REPO reads
+# GITHUB_REPOSITORY), so a run under a different owner would compare against a
+# URL this file never mentions. Pin it, and the assertions below are the same
+# everywhere: on a maintainer's machine, in CI, and in this repository.
+os.environ["GITHUB_REPOSITORY"] = "ludovic111/horizon"
 
 from tools import release_train as train
 
