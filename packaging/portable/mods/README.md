@@ -21,13 +21,13 @@ same screen.
 
 All eight are built from Horizon's own source: the last five are its official
 mods, and `qol_hud`, `qol_homes` and `qol_nightvision` were written for this
-pack. Rebuild them from a checkout of the fork with:
+pack. Rebuild them from a checkout of this repository with:
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File packaging\portable\build-mods.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File packaging\build-mods.ps1
 ```
 
-That writes these seven files, so the pack matches whatever commit you are on.
+That writes these eight files, so the pack matches whatever commit you are on.
 
 Each file is named after the id its `horizon-mod.toml` declares.
 `Play.bat` matches mods on that id rather than on the file name, so a renamed
