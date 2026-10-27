@@ -1,4 +1,5 @@
 import datetime as dt
+import importlib
 import os
 from pathlib import Path
 import tempfile
@@ -9,9 +10,14 @@ from unittest import mock
 # GITHUB_REPOSITORY), so a run under a different owner would compare against a
 # URL this file never mentions. Pin it, and the assertions below are the same
 # everywhere: on a maintainer's machine, in CI, and in this repository.
+#
+# `discover` imports every test module into one process, so another one may have
+# imported release_train first and bound REPO and PLAYERS already. Reload it
+# rather than rely on being first.
 os.environ["GITHUB_REPOSITORY"] = "ludovic111/horizon"
+from tools import release_train as _release_train
 
-from tools import release_train as train
+train = importlib.reload(_release_train)
 
 NOW = dt.datetime(2026, 10, 15, 12, 0, tzinfo=dt.timezone.utc)
 
